@@ -1,0 +1,14 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: kind-guardian
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+           model:
+              gemma3:4b
