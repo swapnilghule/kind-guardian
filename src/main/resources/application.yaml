@@ -11,4 +11,8 @@ spring:
       chat:
         options:
            model:
-              gemma3:4b
+             llama3.1
+
+logging:
+    level:
+      org.springframework.ai: DEBUG

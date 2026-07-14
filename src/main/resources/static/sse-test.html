@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Kind Guardian - Test Console</title>
+    <style>
+        body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; background:#121212; color:#ddd; }
+        h2 { margin-bottom: 4px; }
+        .section { background:#1a1a1a; border:1px solid #333; border-radius:8px; padding:16px; margin-bottom:20px; }
+        .section h3 { margin-top:0; color:#9cdcfe; }
+        textarea, input { width:100%; box-sizing:border-box; background:#222; color:#ddd; border:1px solid #444; border-radius:4px; padding:8px; margin-bottom:8px; }
+        textarea { height:50px; }
+        button { padding:8px 16px; cursor:pointer; background:#2d6cdf; color:white; border:none; border-radius:4px; }
+        button:disabled { background:#444; cursor:not-allowed; }
+        .output {
+          white-space: pre-wrap;
+          background: #000;
+          color: #6f6;
+          padding: 12px;
+          border-radius: 6px;
+          min-height: 60px;
+          margin-top: 10px;
+          font-size: 13px;
+        }
+        .status { color: #888; font-size: 12px; margin-top: 6px; }
+        .sessionBox {
+          display:none;
+          margin-top:10px;
+          background:#0a2a0a;
+          border:1px solid #2a5;
+          border-radius:6px;
+          padding:10px;
+        }
+        .sessionBox .label { color:#8f8; }
+        .sessionBox .value { color:#fff; font-weight:bold; word-break:break-all; }
+        .copyBtn { margin-left:10px; padding:4px 10px; font-size:12px; background:#2a5; }
+    </style>
+</head>
+<body>
+<h2>Kind Guardian - Test Console</h2>
+<div class="status">All sections call the same /chat/pods/fix endpoint - the AI picks the right tool based on your message.</div>
+
+<!-- SECTION 1: General chat / diagnose / fix -->
+<div class="section">
+    <h3>1. Chat / Diagnose / Fix</h3>
+    <textarea id="chatMsg" placeholder="e.g. Diagnose and fix the broken-app deployment in default namespace">Diagnose and fix the broken-app deployment in default namespace</textarea>
+    <button class="sendBtn" data-target="chatOutput" data-input="chatMsg">Send</button>
+    <div class="status" id="chatStatus"></div>
+    <div class="output" id="chatOutput"></div>
+</div>
+
+<!-- SECTION 2: Inject fault(s) -->
+<div class="section">
+    <h3>2. Inject Fault(s)</h3>
+    <textarea id="injectMsg" placeholder="e.g. Inject two combined faults...">Inject two combined training faults on the broken-app deployment in default namespace, using the same comboId for both:
+1. Topic WORKLOADS, targetField /spec/template/spec/containers/0/image, operation REPLACE, badValue nginx:doesnotexist
+2. Topic STORAGE, targetField /spec/template/spec/containers/0/volumeMounts/0/mountPath, operation REPLACE, badValue /invalid/path</textarea>
+    <button class="sendBtn" data-target="injectOutput" data-input="injectMsg">Inject</button>
+    <div class="status" id="injectStatus"></div>
+    <div class="output" id="injectOutput"></div>
+    <div class="sessionBox" id="sessionBox">
+        <span class="label">Session ID detected: </span>
+        <span class="value" id="extractedSessionId"></span>
+        <button class="copyBtn" id="copySessionBtn">Use in Validate box &darr;</button>
+    </div>
+</div>
+
+<!-- ACTIVE SESSIONS (backend truth, not AI text) -->
+<div class="section">
+    <h3>Active Sessions <button id="refreshSessionsBtn" style="font-size:11px;padding:4px 10px">Refresh</button></h3>
+    <div id="sessionsList" class="output" style="font-size:12px">Loading...</div>
+</div>
+
+<!-- SECTION 3: Validate -->
+<div class="section">
+    <h3>3. Validate Session</h3>
+    <input id="sessionId" placeholder="Paste session ID from step 2 output">
+    <button class="sendBtn" data-target="validateOutput" data-input="sessionId" data-template="Validate session {value}">Validate</button>
+    <div class="status" id="validateStatus"></div>
+    <div class="output" id="validateOutput"></div>
+</div>
+
+<script>
+    // Matches "Session ID: <uuid>" or "session ID '<uuid>'" etc, case-insensitive, tolerant of quotes/punctuation
+    const SESSION_ID_PATTERN = /session\s*id[:\s'"]*\s*([a-f0-9-]{8,36})/i;
+
+    function extractSessionId(text) {
+      const match = text.match(SESSION_ID_PATTERN);
+      return match ? match[1] : null;
+    }
+
+    async function loadActiveSessions() {
+      const listEl = document.getElementById('sessionsList');
+      try {
+        const res = await fetch('/sessions');
+        const sessions = await res.json();
+        const ids = Object.keys(sessions);
+
+        if (ids.length === 0) {
+          listEl.textContent = 'No active sessions.';
+          return;
+        }
+
+        listEl.innerHTML = ids.map(id => {
+          const snapshot = sessions[id];
+          const faultCount = snapshot.faults ? snapshot.faults.length : 0;
+          return `<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #333">
+            <span style="color:#fff;font-weight:bold">${id}</span>
+            <span style="color:#888"> - ${faultCount} fault(s)</span>
+            <button class="useSessionBtn" data-id="${id}" style="margin-left:8px;font-size:11px;padding:2px 8px">Use</button>
+          </div>`;
+        }).join('');
+
+        document.querySelectorAll('.useSessionBtn').forEach(b => {
+          b.addEventListener('click', () => {
+            document.getElementById('sessionId').value = b.dataset.id;
+            document.getElementById('sessionId').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+        });
+      } catch (err) {
+        listEl.textContent = 'Error loading sessions: ' + err.message;
+      }
+    }
+
+    document.getElementById('refreshSessionsBtn').addEventListener('click', loadActiveSessions);
+    loadActiveSessions(); // on page load
+
+    document.getElementById('copySessionBtn').addEventListener('click', () => {
+      const id = document.getElementById('extractedSessionId').textContent;
+      document.getElementById('sessionId').value = id;
+      document.getElementById('sessionId').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    document.querySelectorAll('.sendBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const inputEl = document.getElementById(btn.dataset.input);
+        const outputEl = document.getElementById(btn.dataset.target);
+        const statusEl = outputEl.previousElementSibling;
+
+        const rawValue = inputEl.value;
+        const message = btn.dataset.template
+          ? btn.dataset.template.replace('{value}', rawValue)
+          : rawValue;
+
+        outputEl.textContent = '';
+        statusEl.textContent = 'Connecting...';
+        btn.disabled = true;
+
+        // hide session box on new inject attempt
+        if (btn.dataset.target === 'injectOutput') {
+          document.getElementById('sessionBox').style.display = 'none';
+        }
+
+        const startTime = Date.now();
+
+        try {
+          const response = await fetch('/chat/pods/fix', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+          });
+
+          if (!response.ok) {
+            statusEl.textContent = 'Error: ' + response.status;
+            btn.disabled = false;
+            return;
+          }
+
+          statusEl.textContent = 'Streaming...';
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            chunk.split('\n').forEach(line => {
+              if (line.startsWith('data:')) outputEl.textContent += line.slice(5);
+            });
+          }
+
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          statusEl.textContent = `Done in ${elapsed}s`;
+
+          // auto-detect session ID from the full streamed text (only for inject section)
+          if (btn.dataset.target === 'injectOutput') {
+            const sessionId = extractSessionId(outputEl.textContent);
+            if (sessionId) {
+              document.getElementById('extractedSessionId').textContent = sessionId;
+              document.getElementById('sessionBox').style.display = 'block';
+            }
+            loadActiveSessions(); // refresh from real backend state regardless of text parsing
+          }
+        } catch (err) {
+          statusEl.textContent = 'Error: ' + err.message;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+</script>
+</body>
+</html>
