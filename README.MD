@@ -86,3 +86,9 @@ Content-Type : application/json
 
 - Error Pull Model manifest : 412 -> Ollama client is outdated. Update via ollama.com/download
 - CUDA error : the provided PTX was complied with an unsupported toolchain -> NVIDIA driver is older th9n what Ollama bundled CUDA build expects. Update the driver from nvidia.com/drivers (Game-Ready or studio driver, whichever is newer)
+
+MVP:
+
+![1.png](..%2F..%2F..%2FUsers%2FANIKET%20GHULE%2FDownloads%2F1.png)
+![2.png](..%2F..%2F..%2FUsers%2FANIKET%20GHULE%2FDownloads%2F2.png)
+![3.png](..%2F..%2F..%2FUsers%2FANIKET%20GHULE%2FDownloads%2F3.png)
